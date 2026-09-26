@@ -1,0 +1,57 @@
+workflows:
+  android-release:
+    name: Subly Android Build
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      android_signing:
+        - subly_keystore   # create this in Codemagic > Team settings > Code signing identities
+    scripts:
+      - name: Generate Android/iOS platform files
+        script: |
+          # This project only contains Dart source (lib/) and pubspec.yaml.
+          # flutter create fills in the missing android/, ios/ etc. folders
+          # without touching existing lib/ files.
+          flutter create . --platforms=android --org com.example.subly
+
+      - name: Add required Android permissions
+        script: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          # Insert permissions required for notifications + billing,
+          # right after the opening <manifest ...> tag.
+          sed -i '0,/<manifest /{s//<manifest xmlns:tools="http:\/\/schemas.android.com\/tools" /}' "$MANIFEST" || true
+          awk '
+            /<manifest/ && !done {
+              print;
+              print "    <uses-permission android:name=\"android.permission.POST_NOTIFICATIONS\"/>";
+              print "    <uses-permission android:name=\"android.permission.SCHEDULE_EXACT_ALARM\"/>";
+              print "    <uses-permission android:name=\"android.permission.RECEIVE_BOOT_COMPLETED\"/>";
+              print "    <uses-permission android:name=\"com.android.vending.BILLING\"/>";
+              done=1;
+              next
+            }
+            { print }
+          ' "$MANIFEST" > "$MANIFEST.tmp" && mv "$MANIFEST.tmp" "$MANIFEST"
+          cat "$MANIFEST"
+
+      - name: Get Flutter packages
+        script: flutter pub get
+
+      - name: Build release APK (for sideloading on your own phone to test)
+        script: flutter build apk --release
+
+      - name: Build release App Bundle (for Play Store upload)
+        script: flutter build appbundle --release
+
+    artifacts:
+      - build/**/outputs/**/*.apk
+      - build/**/outputs/**/*.aab
+      - android/app/src/main/AndroidManifest.xml
+
+    publishing:
+      email:
+        recipients:
+          - your-email@example.com   # <-- replace with your real email
+        notify:
+          success: true
+          failure: true
