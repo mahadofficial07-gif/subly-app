@@ -33,12 +33,12 @@ class NotificationService {
   /// for notification permission. Required on Android 13+ and iOS.
   Future<void> requestPermissions() async {
     await _plugin
-        .resolvePlatformSpecificImplementation<
+        .resolvePlatformSpecificImplementation
             AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
 
     await _plugin
-        .resolvePlatformSpecificImplementation<
+        .resolvePlatformSpecificImplementation
             IOSFlutterLocalNotificationsPlugin>()
         ?.requestPermissions(alert: true, badge: true, sound: true);
   }
@@ -75,6 +75,8 @@ class NotificationService {
       tz.TZDateTime.from(reminderTime, tz.local),
       details,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
     );
   }
 
