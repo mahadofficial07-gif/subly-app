@@ -4,6 +4,10 @@ workflows:
     max_build_duration: 60
     environment:
       flutter: stable
+      # No android_signing yet — this build uses Flutter's default debug
+      # signing so you can test-install it on your own phone. Before
+      # submitting to the Play Store, generate a real release keystore
+      # and add it back here (see SETUP_GUIDE.md for that step).
     scripts:
       - name: Generate Android/iOS platform files
         script: |
@@ -34,6 +38,44 @@ workflows:
 
       - name: Get Flutter packages
         script: flutter pub get
+
+      - name: Enable core library desugaring
+        script: |
+          python3 - <<'PY'
+          import re, os
+
+          kts = 'android/app/build.gradle.kts'
+          groovy = 'android/app/build.gradle'
+          path = kts if os.path.exists(kts) else groovy
+
+          with open(path) as f:
+              content = f.read()
+
+          if path.endswith('.kts'):
+              if 'isCoreLibraryDesugaringEnabled' not in content:
+                  content = re.sub(r'(compileOptions\s*\{)',
+                                    r'\1\n        isCoreLibraryDesugaringEnabled = true',
+                                    content, count=1)
+              if 'coreLibraryDesugaring(' not in content:
+                  content = re.sub(r'(\ndependencies\s*\{)',
+                                    r'\1\n    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")',
+                                    content, count=1)
+          else:
+              if 'coreLibraryDesugaringEnabled' not in content:
+                  content = re.sub(r'(compileOptions\s*\{)',
+                                    r'\1\n        coreLibraryDesugaringEnabled true',
+                                    content, count=1)
+              if "coreLibraryDesugaring '" not in content and 'coreLibraryDesugaring(' not in content:
+                  content = re.sub(r'(\ndependencies\s*\{)',
+                                    r"\1\n    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'",
+                                    content, count=1)
+
+          with open(path, 'w') as f:
+              f.write(content)
+
+          print('Patched', path)
+          print(content)
+          PY
 
       - name: Build release APK (for sideloading on your own phone to test)
         script: flutter build apk --release
